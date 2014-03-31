@@ -1,0 +1,638 @@
+package automata;
+
+import java.util.HashSet;
+import java.util.Set;
+
+/**
+ * The whole NFA diagram as opposed to a node in the graph.
+ * State set can be implied by edges; start states and final states
+ * are stored as S, and F respectively; transition function is specified by
+ * edges; the alphabet is the same set of the type char.
+ */
+public abstract class AbstractNFA {
+  private Set<Integer> S, F; //represent start and final states
+  private Set<Edge> edges; //a directed graph
+
+  public AbstractNFA() {
+    S = new HashSet<Integer>();
+    F = new HashSet<Integer>();
+    edges = new HashSet<Edge>();
+  }
+
+  /**
+   * A constructor which given a regular expression
+   * makes an NFA for it
+   * @param regex
+   */
+  public AbstractNFA(String regex) {
+    AbstractNFA abstractNFA = mkNFAFromRegEx(regex);
+    setStartStates(abstractNFA.getStartStates());
+    setFinalStates(abstractNFA.getFinalStates());
+    setEdges(abstractNFA.getEdges());
+  }
+
+  public void setStartStates(Set<Integer> S) {
+    this.S = S;
+  }
+
+  public void setFinalStates(Set<Integer> F) {
+    this.F = F;
+  }
+
+  public void setEdges(Set<Edge> edges) {
+        this.edges = edges;
+    }
+
+  public Set<Integer> getStartStates() {
+    return new HashSet<Integer>(S);
+  }
+
+  public Set<Integer> getFinalStates() {
+    return new HashSet<Integer>(F);
+  }
+
+  public Set<Edge> getEdges() {
+    return new HashSet<Edge>(edges);
+  }
+
+  /**
+   * given a string input
+   * says whether or not it is accepted
+   * @param input
+   * @return
+   */
+  public boolean accept(String input) {
+	    //use P to represent the intermediate states we have seen
+	    // obviously we begin with start state
+	    Set<Integer> P = new HashSet<Integer>(S);
+	    int i = 0;
+	    while (true) {
+	      boolean changed;
+	      //handle epsilon transitions
+	      do {
+	        changed = false;
+	        for (Edge e : edges)
+	          if (e.getLabels().match(Labels.epsilon) && P.contains(e.getSrc()))
+	            changed = changed || P.add(e.getDst());
+	      } while (changed);
+	      if (i >= input.length()) break;
+	      char c = input.charAt(i);
+	      i = i + 1;
+	      //use the character c to update the set of states that
+	      // you can reach
+	      Set<Integer> T = new HashSet<Integer>();
+	      for (Edge e : edges) {
+	        if (e.getLabels().match(c) && P.contains(e.getSrc())||e.getLabels().match(Labels.anyChar) && P.contains(e.getSrc()))
+	          T.add(e.getDst());
+	      }
+	      if (T.isEmpty()) return false;
+	      P = T;
+	    }
+	    //are any of the states we reached a final state
+	    for (Integer q : P)
+	      if (F.contains(q)) return true;
+	    return false;
+	  }
+
+  // following methods need to be implement in a child class
+  protected abstract AbstractNFA mkNFAFromRegEx(String regex);
+
+  /**
+   * makes an NFA accepting one digit
+   * @return
+   */
+  protected abstract AbstractNFA mkNFAOfDigit();
+
+  /**
+   * makes an NFA accepting one alphanumeric character
+   * @return
+   */
+  protected abstract AbstractNFA mkNFAOfAlphaNum();
+
+
+  /**
+   * makes an NFA accepting one white character
+   * @return
+   */
+  protected abstract AbstractNFA mkNFAOfWhite();
+
+
+
+  /**
+   * makes an NFA accepting one character of any kind
+   * @return
+   */
+  protected abstract AbstractNFA mkNFAOfAnyChar();
+
+  /**
+   * makes an NFA accepting the given character
+   * @param c
+   * @return
+   */
+  protected abstract AbstractNFA mkNFAOfChar(char c);
+
+  /**
+   * makes an NFA union construction of the given two
+   * @param nfa1
+   * @param nfa2
+   * @return
+   */
+  protected abstract AbstractNFA unionOf(AbstractNFA nfa1, AbstractNFA nfa2);
+
+  /**
+   * makes an NFA concatenation construction of the given two
+   * @param nfa1
+   * @param nfa2
+   * @return
+   */
+  protected abstract AbstractNFA concatOf(AbstractNFA nfa1, AbstractNFA nfa2);
+
+  /**
+   * makes an NFA kleene star construction of the given one
+   * @param nfa
+   * @return
+   */
+  protected abstract AbstractNFA starOf(AbstractNFA nfa);
+
+  /**
+   * makes an NFA accepting what the given one accepts at least once
+   * @param nfa
+   * @return
+   */
+  protected abstract AbstractNFA plusOf(AbstractNFA nfa);
+
+  /**
+   * makes an NFA accepting what the given one accepts at most once
+   * @param nfa
+   * @return
+   */
+  protected abstract AbstractNFA maxOnceOf(AbstractNFA nfa);
+}
+
+package automata;
+
+/**
+ * Edge class stores source node, destination node and the label set.
+ * CAUTION: Though if one needs to attach a label set and a colabel set to
+ * the same pair of source node and destination node, one needs to create
+ * at least two Edge instances.
+ */
+public class Edge {
+  private Integer src, dst;
+  private Labels labels;
+
+  public Edge(int src, int dst, Labels labels) {
+    this.src = src;
+    this.dst = dst;
+    this.labels = labels;
+  }
+
+  public void labels(Labels abstractLabels) {
+    this.labels = abstractLabels;
+  }
+
+  public Labels getLabels() {
+    return labels;
+  }
+
+  public Integer getSrc() {
+    return src;
+  }
+
+  public Integer getDst() {
+    return dst;
+  }
+}
+
+package automata;
+
+public class Label {
+    char c;
+    
+    Label(char c){
+        this.c = c;
+    }
+    
+    boolean match(char c){
+        return this.c == c;
+    }
+    /***
+     * we choose to use '$' as our empty string symbol
+     * @return
+     */
+    boolean epsilon(){
+        return c=='$';
+    }
+}
+
+package automata;
+
+import java.util.HashSet;
+import java.util.Set;
+
+public class Labels {
+  // epsilon is the one in epsilon transitions
+  public static final int epsilon = 0;
+  public static final int anyChar = -1;
+
+  // Use integer to store the character internally
+  // so that special characters can be addressed elegantly.
+  private Set<Integer> labels;
+
+  public Labels() {
+    labels = new HashSet<Integer>();
+  }
+
+  public Labels(char... chars) {
+    labels = new HashSet<Integer>();
+    add(chars);
+  }
+
+  public Labels(int... ints) {
+    labels = new HashSet<Integer>();
+    add(ints);
+  }
+
+  /**
+   * Add characters to labels, ignoring the duplicates
+   * @param chars
+   * @return true
+   */
+  public boolean add(char... chars) {
+    for (int i = 0; i < chars.length; i++) {
+      labels.add(charToInt(chars[i]));
+    }
+    return true;
+  }
+
+  /**
+   * Add integers to labels, ignoring the duplicates
+   * @param ints
+   * @return true
+   */
+  public boolean add(int... ints) {
+    for (int i = 0; i < ints.length; i++) {
+      labels.add(ints[i]);
+    }
+    return true;
+  }
+
+  /**
+   * Add labels from a character to another character, inclusively
+   * @param from
+   * @param to
+   * @return true
+   */
+  public boolean addFromTo(char from, char to) {
+    if (from <= to) {
+      for (int i = charToInt(from); i <= charToInt(to); i++) {
+        labels.add(i);
+      }
+    } else {
+      for (int i = charToInt(from); i >= charToInt(to); i--) {
+        labels.add(i);
+      }
+    }
+    return true;
+  }
+
+  /**
+   * Add labels from an int to another int, inclusively
+   * @param from
+   * @param to
+   * @return true
+   */
+  public boolean addFromTo(int from, int to) {
+    if (from <= to) {
+      for (int i = from; i <= to; i++) {
+        labels.add(i);
+      }
+    } else {
+      for (int i = from; i >= to; i--) {
+        labels.add(i);
+      }
+    }
+    return true;
+  }
+
+  public boolean match(char c) {
+    // If it is a label, containing such is true;
+    return labels.contains(charToInt(c));
+  }
+
+  public boolean match(int i) {
+    // If it is a label, containing such is true;
+    return labels.contains(i);
+  }
+
+  // Char is a 16-bit unicode character with minimum value of 0
+  // while int is a 32-bit signed two's complement integer.
+  // Thus the coercion is legit.
+  private int charToInt(char c) {
+    return (int)c;
+  }
+}
+
+package automata;
+
+import java.lang.reflect.Array;
+import java.util.Set;
+import java.util.HashSet;
+import java.util.Stack;
+import java.util.regex.PatternSyntaxException;
+
+
+public class NFA extends AbstractNFA {
+
+    public NFA() {
+        super();
+    }
+
+    public NFA(String regex) {
+        super(regex);
+    }
+
+    @Override
+    protected AbstractNFA mkNFAFromRegEx(String regex) {
+        Stack<AbstractNFA> nfaStack = new Stack<AbstractNFA>();
+        char c;
+        int pos = 0;
+        while (pos < regex.length()) {
+            //implement provide pseudo-code
+        		c = regex.charAt(pos);
+        		if (c == '\\') { 	//escape       
+        			if (pos + 1 == regex.length()) System.out.println("syntax error");
+        			c = regex.charAt(++pos);
+        			if (c == 'd'){
+        				nfaStack.push(mkNFAOfDigit());}
+        			else if (c == 'w')
+        				nfaStack.push(mkNFAOfAlphaNum());
+        			else if (c == 's')
+        				nfaStack.push(mkNFAOfWhite());
+        			else if (c == 't')
+        				nfaStack.push(mkNFAOfChar('\t'));
+        			else if(isMetaChar(c))
+        				nfaStack.push(mkNFAOfChar(c));
+        		} 
+        		else if (c == '.') { //wildcard
+        			nfaStack.push(mkNFAOfAnyChar());
+        		} 
+        		else if (c == '&') {
+        			AbstractNFA nfa2 = nfaStack.pop();
+        			AbstractNFA nfa1 = nfaStack.pop();
+        			nfaStack.push(concatOf(nfa1, nfa2));
+        		} 
+        		else if (c == '|') {
+        			AbstractNFA nfa2 = nfaStack.pop();
+        			AbstractNFA nfa1 = nfaStack.pop();
+        			nfaStack.push(unionOf(nfa1, nfa2));
+        		} 
+        		else if (c == '*') {
+        			AbstractNFA nfa = nfaStack.pop();
+        			nfaStack.push(starOf(nfa));
+        		} 
+        		else if (c == '+') {
+        			AbstractNFA nfa = nfaStack.pop();
+        			nfaStack.push(plusOf(nfa));
+        		} 
+        		else if (c == '?') {
+        			AbstractNFA nfa = nfaStack.pop();
+        			nfaStack.push(maxOnceOf(nfa));
+        		} 
+        		else{
+        			nfaStack.push(mkNFAOfChar(c));
+        			}
+        		pos++;
+        }
+
+        if (nfaStack.size() != 1)
+            throw new IllegalArgumentException("illegal regular expression: "
+                    + "the number of operators do not match"
+                    + " the number of tokens.");
+
+        return nfaStack.pop();
+    }
+
+    @Override
+    protected AbstractNFA mkNFAOfDigit() {
+    	AbstractNFA nfa = new NFA();
+    	int src = StateNumberKeeper.getNewStateNumber();
+    	int dst = StateNumberKeeper.getNewStateNumber();
+    	Set<Integer> srcSet = mkStates(src);
+    	Set<Integer> dstSet = mkStates(dst);
+    	nfa.setStartStates(srcSet);
+    	nfa.setFinalStates(dstSet);
+    	Labels Label = new Labels();
+    	Label.addFromTo('0','9');
+     	Edge edge1 = new Edge(src,dst,Label);
+     	Set<Edge> edges = mkEdges(edge1);
+     	nfa.setEdges(edges);
+    	return nfa;
+    }
+
+    @Override
+    protected AbstractNFA mkNFAOfAlphaNum() {
+    	AbstractNFA nfa = new NFA();
+    	int src = StateNumberKeeper.getNewStateNumber();
+    	int dst = StateNumberKeeper.getNewStateNumber();
+    	Set<Integer> srcSet = mkStates(src);
+    	Set<Integer> dstSet = mkStates(dst);
+    	nfa.setStartStates(srcSet);
+    	nfa.setFinalStates(dstSet);
+    	Labels Label1 = new Labels();
+    	Label1.addFromTo('0','9');
+    	Labels Label2 = new Labels();
+    	Label2.addFromTo('a','z');
+    	Labels Label3 = new Labels();
+    	Label3.addFromTo('A','Z');
+    	Edge edge1 = new Edge(src,dst,Label1);
+    	Edge edge2 = new Edge(src,dst,Label2);
+    	Edge edge3 = new Edge(src,dst,Label3);
+     	Set<Edge> edges = mkEdges(edge1,edge2,edge3);
+     	nfa.setEdges(edges);
+        return nfa;
+    }
+    
+    @Override
+    protected AbstractNFA mkNFAOfWhite() {
+    	AbstractNFA nfa = new NFA();
+    	int src = StateNumberKeeper.getNewStateNumber();
+    	int dst = StateNumberKeeper.getNewStateNumber();
+    	Set<Integer> srcSet = mkStates(src);
+    	Set<Integer> dstSet = mkStates(dst);
+    	nfa.setStartStates(srcSet);
+    	nfa.setFinalStates(dstSet);
+    	Labels Label1 = new Labels();
+    	Label1.add(' ','\t', '\r', '\n', '\f');  //how to add ''
+    	Edge edge1 = new Edge(src,dst,Label1);
+     	Set<Edge> edges = mkEdges(edge1);
+     	nfa.setEdges(edges);
+        return nfa;
+    }
+
+    @Override
+    protected AbstractNFA mkNFAOfAnyChar() {
+    	NFA nfa = new NFA();
+        int startState = StateNumberKeeper.getNewStateNumber();
+        Set<Integer> S = mkStates(startState);
+        nfa.setStartStates(S);
+        int finalState = StateNumberKeeper.getNewStateNumber();
+        Set<Integer> F = mkStates(finalState);
+        nfa.setFinalStates(F);
+        Labels labels = new Labels();
+        labels.add(Labels.anyChar);
+        Edge edge = new Edge(startState, finalState, labels);
+        Set<Edge> edges = mkEdges(edge);
+        nfa.setEdges(edges);
+        return nfa;
+    }
+
+    @Override
+    protected AbstractNFA mkNFAOfChar(char c) {
+    	NFA nfa = new NFA();
+        int startState = StateNumberKeeper.getNewStateNumber();
+        Set<Integer> S = mkStates(startState);
+        nfa.setStartStates(S);
+        int finalState = StateNumberKeeper.getNewStateNumber();
+        Set<Integer> F = mkStates(finalState);
+        nfa.setFinalStates(F);
+        Labels labels = new Labels();
+        labels.add(c);
+        Edge edge = new Edge(startState, finalState, labels);
+        Set<Edge> edges = mkEdges(edge);
+        nfa.setEdges(edges);
+        return nfa;
+    }
+
+    @Override
+    protected AbstractNFA unionOf(AbstractNFA nfa1, AbstractNFA nfa2) {
+    	AbstractNFA nfa = new NFA();
+    	int src = StateNumberKeeper.getNewStateNumber();
+    	nfa.setStartStates(mkStates(src));
+    	Set<Integer> dstSet = nfa1.getFinalStates(); 
+    	dstSet.addAll(nfa2.getFinalStates());
+    	nfa.setFinalStates(dstSet);
+    	Labels Label1 = new Labels();
+    	Label1.add(Labels.epsilon);
+    	Set<Edge> edges = new HashSet<Edge>();
+    	for( Integer i : nfa1.getStartStates() ) {
+      	  edges.add(new Edge(src,i,Label1));
+      	}
+    	for( Integer i : nfa2.getStartStates() ) {
+    		edges.add(new Edge(src,i,Label1));
+        }
+    	edges.addAll(nfa1.getEdges());
+    	edges.addAll(nfa2.getEdges());
+    	nfa.setEdges(edges);    	
+        return nfa;
+    }
+
+    @Override
+    protected AbstractNFA concatOf(AbstractNFA nfa1, AbstractNFA nfa2) {
+        AbstractNFA nfa = new NFA();
+        nfa.setStartStates(nfa1.getStartStates());
+        nfa.setFinalStates(nfa2.getFinalStates());
+
+        Labels Label1 = new Labels();
+        Label1.add(Labels.epsilon);
+        Set<Edge> edges = new HashSet<Edge>();
+        for( Integer j : nfa2.getStartStates()){
+            for( Integer i : nfa1.getFinalStates()) {
+                edges.add(new Edge(i,j,Label1));
+            }        	
+        }       
+        edges.addAll(nfa1.getEdges());
+        edges.addAll(nfa2.getEdges());
+        nfa.setEdges(edges);
+        return nfa;
+    }
+
+    @Override
+    protected AbstractNFA starOf(AbstractNFA nfa) {
+    	int src = StateNumberKeeper.getNewStateNumber();  	
+    	Labels Label = new Labels();
+    	Label.add(Labels.epsilon);
+    	Set<Edge> edges = new HashSet<Edge>();
+    	for( Integer i : nfa.getStartStates() ){
+    		edges.add(new Edge(src,i,Label));
+        	for( Integer j : nfa.getFinalStates()){
+    			edges.add(new Edge(j,i,Label)); 
+    		}
+    	}
+    	Set<Integer> dstSet = new HashSet<Integer>();
+    	nfa.setStartStates(mkStates(src));
+    	dstSet.addAll(nfa.getStartStates());
+    	dstSet.addAll(nfa.getFinalStates());
+    	nfa.setFinalStates(dstSet);
+    	edges.addAll(nfa.getEdges());
+    	nfa.setEdges(edges);        	
+        return nfa;
+    }
+
+    @Override
+    protected AbstractNFA plusOf(AbstractNFA nfa) {
+    	AbstractNFA nfa2 = starOf(nfa);
+    	nfa = concatOf(nfa,nfa2);
+        return nfa;
+    }
+
+    @Override
+    protected AbstractNFA maxOnceOf(AbstractNFA nfa) {
+    	nfa = unionOf(mkNFAOfWhite(),nfa);
+        return nfa;
+    }
+
+    private boolean isMetaChar(char c) {
+        return c == '\\' || c == '.' || c == '&' || c == '|' || c == '*'
+                || c == '+' || c == '?';
+    }
+
+    private Set<Integer> mkStates(int... indices) {
+        Set<Integer> states = new HashSet<Integer>();// ?????
+        for (int i = 0; i < indices.length; i++) {
+            states.add(indices[i]);
+        }
+        return states;
+    }
+
+    private Set<Edge> mkEdges(Edge... edges) {
+        Set<Edge> edgeSet = new HashSet<Edge>();
+        for (int i = 0; i < edges.length; i++) {
+            edgeSet.add(edges[i]);
+        }
+        return edgeSet;
+    }
+
+    /**
+     * @param args
+     */
+    public static void main(String[] args) {
+        if (args.length < 2) {
+            System.out
+            .println("usage: NFA arg1 arg2\n"
+                    + "arg1: the pattern to match\n"
+                    + "arg2: the input string");
+        } else {
+            NFA nfa = new NFA(args[0]);
+            System.out.println("arguments have been validated");
+            System.out.println(nfa.accept(args[1]));
+        }
+        return;
+    }
+}
+
+package automata;
+
+/**
+ * A class always issues unique state number
+ * CAUTION: if the length of regex is too long,
+ * the uniqueness of state number cannot be guaranteed.
+ */
+public class StateNumberKeeper {
+  private static int currentStateNumber = 0;
+
+  public static int getNewStateNumber() {
+    currentStateNumber = currentStateNumber + 1;
+    return currentStateNumber;
+  }
+}
