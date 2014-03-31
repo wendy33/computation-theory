@@ -1,0 +1,194 @@
+package parsing;
+
+import java.util.*;
+import java.io.BufferedReader;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.IOException;
+
+import org.junit.Test;
+
+public class CYKParser {
+	private HashMap<String, String> grammar;
+	private String[] s;
+	private String[][] table;
+	
+	public HashMap<String, String> getGrammar() {
+		return grammar;
+	}
+
+	public void setGrammar(HashMap<String, String> grammar) {
+		this.grammar = grammar;
+	}
+	
+	
+
+	public CYKParser(String fileName) throws Exception{
+	    setGrammar(new HashMap<String, String>());		
+		FileReader fileReader = new FileReader(fileName);
+		BufferedReader bufferedReader = new BufferedReader(fileReader);
+		boolean flag = true;
+		while (flag) {
+			String s = bufferedReader.readLine();
+			if (s == null) {
+				flag = false;
+			} else {
+				if(s.matches("^[A-Z] -> [A-Z]{2}")||s.matches("^[A-Z] -> [a-z]+ ")){
+					if(getGrammar().containsKey(s.substring(5))){
+						getGrammar().put(s.substring(5),getGrammar().get(s.substring(5)) + "," +s.substring(0,1));						
+					}
+					else{
+						getGrammar().put(s.substring(5), s.substring(0,1));
+					}					 
+				}
+				else{
+					flag = false;
+					bufferedReader.close();
+					fileReader.close();
+					throw new Exception("please submit correct grammar for parsing");
+				}
+			}
+		}
+		fileReader.close();
+	}
+	
+	public String  parse(String str){
+		s = str.split(" ");
+		int size = s.length;
+		setTable(new String[size][size]);
+		for(int i=0;i<size;i++){
+			for(int j=0;j<size-i;j++){
+				getTable()[i][j] = this.fill(i,j);				
+			}
+		}
+		if(getTable()[size-1][0].contains("S"))
+			return "Yes";
+		return "No";
+	}
+	
+	protected String fill(int i,int j){
+		String var = "";
+		if(i==0){
+			for(String key:getGrammar().keySet()){
+				if(s[j].equals(key.trim())){
+					var = getGrammar().get(key) + "," + var;
+				} 
+			}
+			return var;
+		}
+		else{
+			for(int k=0;k<i;k++){
+				for(int m=0;m<getTable()[k][j].split(",").length;m++){
+					for(int n=0;n<getTable()[i-k-1][j+k+1].split(",").length;n++){
+						for(String key:getGrammar().keySet()){
+							if(key.trim().equals(getTable()[k][j].split(",")[m] + "" + getTable()[i-k-1][j+k+1].split(",")[n])){
+								var = getGrammar().get(key) + "," + var;
+							}
+						}						
+					}
+				}
+			}
+			return var;
+		}
+	}
+	
+
+	
+	public static void main(String[] args){
+		CYKParser parser = null;
+		try {
+			parser = new CYKParser(UserInput.askFileName());
+			
+		} catch (Exception e1) {
+			e1.printStackTrace();
+			System.out.println(e1.getMessage());
+		}
+		if(parser != null){
+			String s;
+			while(!(s = UserInput.askString()).equals("exit")){
+				System.out.println(parser.parse(s));
+			}
+		}
+	}
+
+	public String[][] getTable() {
+		return table;
+	}
+
+	public void setTable(String[][] table) {
+		this.table = table;
+	}
+
+}
+
+package parsing;
+
+import static org.junit.Assert.*;
+
+import org.junit.Before;
+import org.junit.Test;
+
+public class CYKParserTest {
+	CYKParser parser;
+	@Before
+	public void setUp() throws Exception {
+		parser = null;
+		try {
+			parser = new CYKParser("english.txt");
+		} catch (Exception e1) {
+			e1.printStackTrace();
+		}
+	}
+
+	@Test
+	public void testCYKParser() {		
+		assertEquals(parser.getGrammar().get("streams "),"N,V");
+		assertEquals(parser.getGrammar().get("amy "),"N");
+		assertEquals(parser.getGrammar().get("NV"),"S");
+		assertEquals(parser.getGrammar().get("swim "),"V");
+	}
+	
+	@Test
+	public void testfill(){
+		parser.parse("amy ate ");
+		assertEquals(parser.getTable()[0][0], "N,");
+		assertEquals(parser.getTable()[0][1], "V,");
+		assertEquals(parser.getTable()[1][0], "S,");
+		assertEquals(parser.getTable()[1][1], null);
+	}
+	
+	@Test
+	public void testParse() {
+		assertEquals(parser.parse("amy ate "), "Yes");
+		assertEquals(parser.parse("fish swim in streams "), "Yes");		
+		assertEquals(parser.parse("fish streams "), "Yes");
+		assertEquals(parser.parse("toy in "), "No");
+	}
+	
+
+}
+
+package parsing;
+
+import java.util.Scanner;
+
+public class UserInput {
+
+	public UserInput() {
+	}
+	
+	public static String askFileName(){
+		Scanner sc = new Scanner(System.in);
+		System.out.println("Please input name of grammar file");
+		String fileName = sc.next();
+		return fileName;
+	}
+	
+	public static String askString(){
+		Scanner sc = new Scanner(System.in);
+		System.out.println("Please input string or \"exit\" to quit");
+		String string = sc.nextLine();
+		return string;
+	}
+
+}
